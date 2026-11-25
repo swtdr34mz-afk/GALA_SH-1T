@@ -40,11 +40,15 @@ void drawSection(juce::Graphics &, juce::Rectangle<float> r, const juce::String 
 void drawLegend(juce::Graphics &, const juce::String &, juce::Rectangle<float>, float size = 13.0f,
                 juce::Colour c = col::legend, juce::Justification j = juce::Justification::centred);
 /* a knob in r (square): pos 0..1; bipolar: a centre mark */
-void drawKnob(juce::Graphics &, juce::Rectangle<float> r, float pos, bool bipolar);
-/* a fader: its slot and scale in r, the cap at pos 0..1 */
-void drawFader(juce::Graphics &, juce::Rectangle<float> r, float pos, bool bipolar);
+void drawKnob(juce::Graphics &, juce::Rectangle<float> r, float pos, bool bipolar, int seed = 0);
+/* a fader: its slot and scale in r, the cap at pos 0..1. seed: this fader's own small faults (the cap a little off
+ * centre or askew, its white line higher or lower, shorter, worn; the scale printed a hair off) */
+void drawFader(juce::Graphics &, juce::Rectangle<float> r, float pos, bool bipolar, int seed = 0);
 /* a rubber button, lit in a colour (transparent: dark) */
-void drawButton(juce::Graphics &, juce::Rectangle<float> r, juce::Colour lit, bool down, bool over);
+void drawButton(juce::Graphics &, juce::Rectangle<float> r, juce::Colour lit, bool down, bool over, int seed = 0);
+/* the surface you would feel under a finger, lit from the top left, over a region in device pixels (no transform):
+ * kind 0 the panel's stippled paint, 1 the body's orange-peel lacquer; sc: the pixels a panel unit */
+void drawSurface(juce::Graphics &, const juce::Path &deviceRegion, int kind, float sc, float strength);
 void drawLed(juce::Graphics &, juce::Point<float> c, float size, juce::Colour colour, float level);
 void drawTag(juce::Graphics &, juce::Rectangle<float> r);
 /* a relic job, on the body and the panel (under the controls): checked lacquer, worn through at the edges, the paint

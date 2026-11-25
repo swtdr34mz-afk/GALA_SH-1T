@@ -8,6 +8,7 @@ using Panel = GalaPanel;
 
 namespace
 {
+int nextSeed() { static int n = 0; return ++n; }   /* (each control its own faults, the same each time) */
 /* ------------------------------------------------------------------------------- what a control turns --- */
 /* a tone's parameter (the tones selected: shown the first's, written to all), one of the patch's own, or one of
  * the plugin's (by id); NONE: nothing (the control hides) */
@@ -105,12 +106,12 @@ int defOf(Panel &P, const Bind &b)
 class Knob : public juce::Component, public Panel::Live
 {
 public:
-    Knob(Panel &p, std::function<Bind()> b) : P(p), bind(std::move(b)) {}
+    Knob(Panel &p, std::function<Bind()> b) : P(p), bind(std::move(b)), seed(nextSeed()) {}
     void paint(juce::Graphics &g) override
     {
         if (cur.kind == Bind::NONE)
             return;
-        drawKnob(g, getLocalBounds().toFloat(), pos, bipolar);
+        drawKnob(g, getLocalBounds().toFloat(), pos, bipolar, seed);
     }
     void poll() override
     {
@@ -167,6 +168,7 @@ private:
     Panel &P;
     std::function<Bind()> bind;
     Bind cur;
+    int seed;
     float pos = -1.0f, startY = 0.0f;
     int startV = 0;
     bool bipolar = false;
@@ -176,8 +178,8 @@ private:
 class Fader : public juce::Component, public Panel::Live
 {
 public:
-    Fader(Panel &p, Bind b) : P(p), bind(b) {}
-    void paint(juce::Graphics &g) override { drawFader(g, getLocalBounds().toFloat(), pos, bipolar); }
+    Fader(Panel &p, Bind b) : P(p), bind(b), seed(nextSeed()) {}
+    void paint(juce::Graphics &g) override { drawFader(g, getLocalBounds().toFloat(), pos, bipolar, seed); }
     void poll() override
     {
         int lo, hi;
@@ -216,6 +218,7 @@ private:
     }
     Panel &P;
     Bind bind;
+    int seed;
     float pos = -1.0f;
     bool bipolar = false;
 };
@@ -225,7 +228,7 @@ class Btn : public juce::Component, public Panel::Live
 {
 public:
     Btn(std::function<juce::Colour()> l, std::function<void(const juce::MouseEvent &)> c, juce::String t = {})
-        : lit(std::move(l)), click(std::move(c)), text(std::move(t))
+        : lit(std::move(l)), click(std::move(c)), text(std::move(t)), seed(nextSeed())
     {
     }
     std::function<void(bool)> momentary;           /* (held: down true, up false) */
@@ -233,7 +236,7 @@ public:
     void paint(juce::Graphics &g) override
     {
         auto r = getLocalBounds().toFloat().reduced(2.0f, 3.0f);
-        drawButton(g, r, shown, down, isMouseOver());
+        drawButton(g, r, shown, down, isMouseOver(), seed);
         juce::String t = dynText ? dynText() : text;
         if (t.isNotEmpty()) {
             g.setColour(shown.isTransparent() ? juce::Colour(0xff1c1d20) : juce::Colours::black.withAlpha(0.8f));
@@ -273,6 +276,7 @@ public:
     std::function<juce::Colour()> lit;
     std::function<void(const juce::MouseEvent &)> click;
     juce::String text, shownText;
+    int seed;
     juce::Colour shown = juce::Colours::transparentBlack;
     bool down = false;
 };
@@ -1417,6 +1421,22 @@ void Panel::paint(juce::Graphics &g)
                            juce::Point<float>(W - 30.0f, H - 30.0f), juce::Point<float>(W * 0.5f, 26), juce::Point<float>(W * 0.5f, H - 26.0f)})
                 drawScrew(bg, p, 7.5f, seed++);
             drawTag(bg, juce::Rectangle<float>(1470, 922, 180, 44));
+        }
+        {
+            /* the surface you would feel: the body's lacquer, the panel's stippled paint (over the print too) */
+            juce::Graphics tg(background);
+            auto all = juce::Rectangle<float>(0, 0, (float)W, (float)H);
+            juce::Path body, panel;
+            body.addRoundedRectangle(all.reduced(1.0f), 26.0f);
+            panel.addRoundedRectangle(all.reduced(16.0f), 14.0f);
+            auto toDev = juce::AffineTransform::scale(sc);
+            body.applyTransform(toDev);
+            panel.applyTransform(toDev);
+            juce::Path ring(body);
+            ring.setUsingNonZeroWinding(false);
+            ring.addPath(panel);
+            drawSurface(tg, ring, 1, sc, 0.45f);
+            drawSurface(tg, panel, 0, sc, 0.42f);
         }
         dust = juce::Image(juce::Image::ARGB, w, h, true);
         {
