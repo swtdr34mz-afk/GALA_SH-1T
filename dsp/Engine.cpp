@@ -64,7 +64,7 @@ constexpr float VOICE_GAIN = 0.2f;
 constexpr int KEY_ARP = 1000;
 /* SUPER SAW: the six side saws' detune (a fraction of the frequency at full spread), JP-8000-like */
 const float SS_DET[7] = {0.0f, -0.110f, 0.110f, -0.063f, 0.063f, -0.022f, 0.022f};
-const float SS_SPREAD[3] = {0.22f, 0.45f, 0.85f};
+const float SS_SPREAD[3] = {0.055f, 0.095f, 0.16f};      /* (the outer saws: about +-10, +-18, +-30 cents) */
 const float SS_SIDE[3] = {0.45f, 0.6f, 0.75f};
 
 inline float envSec(float v) { return 0.0008f * std::exp2(v * (13.8f / 127.0f)); }       /* 0.8 ms .. 11 s */
