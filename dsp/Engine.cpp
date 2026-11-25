@@ -66,6 +66,8 @@ constexpr int KEY_ARP = 1000;
 const float SS_DET[7] = {0.0f, -0.110f, 0.110f, -0.063f, 0.063f, -0.022f, 0.022f};
 const float SS_SPREAD[3] = {0.055f, 0.095f, 0.16f};      /* (the outer saws: about +-10, +-18, +-30 cents) */
 const float SS_SIDE[3] = {0.45f, 0.6f, 0.75f};
+/* its level: the seven saws' sum as loud as one saw (they add as noise: by the square root of their powers) */
+const float SS_GAIN[3] = {1.0f / std::sqrt(1.0f + 6.0f * 0.45f * 0.45f), 1.0f / std::sqrt(1.0f + 6.0f * 0.36f), 1.0f / std::sqrt(1.0f + 6.0f * 0.5625f)};
 
 inline float envSec(float v) { return 0.0008f * std::exp2(v * (13.8f / 127.0f)); }       /* 0.8 ms .. 11 s */
 inline float lfoHz(float v) { return 0.05f * std::exp2(v * (10.3f / 127.0f)); }          /* 0.05 .. 63 Hz */
@@ -1228,26 +1230,32 @@ void Engine::toneChunk(Voice &v, int t, float *L, float *R, float *mod2, bool wa
     switch (wave) {
     case W_SAW: wA.set(1, 0.5f); wB.set(1, 0.5f); break;
     case W_SQR: wA.set(4, 0.5f); wB.set(4, 0.5f); break;
-    case W_PULSE: wA.set(4, pw); wB.set(4, var == 2 ? 0.5f : pw); break;
+    case W_PULSE: wA.set(4, pw); wB.set(4, pw); break;
     case W_TRI: wA.set(3, 0.5f); wB.set(3, 0.5f); break;
     case W_SUPERSAW: wA.set(1, 0.5f); break;
     default: break;
     }
-    /* the second oscillator's ratio (the variations) */
-    float ratB = 1.0f, mixA = 1.0f, mixB = 0.0f;
+    /* the variations: a second oscillator, never a different pitch (a detuned pair sits either side of the note) */
+    float ratA = 1.0f, ratB = 1.0f, mixA = 1.0f, mixB = 0.0f;
     bool useB = false;
+    auto pair = [&](float cents) {
+        ratA = std::exp2(-cents / 2400.0f);
+        ratB = std::exp2(cents / 2400.0f);
+        mixA = mixB = 0.62f;
+        useB = true;
+    };
     switch (wave) {
     case W_SAW:
-        if (var == 1) { ratB = std::exp2(12.0f / 1200.0f); mixA = 0.62f; mixB = 0.62f; useB = true; }
-        if (var == 2) { ratB = 0.5f; mixA = 0.7f; mixB = 0.5f; useB = true; }
+        if (var == 1) pair(12.0f);
+        if (var == 2) { ratB = 2.0f; mixA = 0.85f; mixB = 0.35f; useB = true; }       /* an octave over it: brighter */
         break;
     case W_SQR:
-        if (var == 1) { ratB = 0.5f; mixA = 0.62f; mixB = 0.55f; useB = true; }
+        if (var == 1) pair(8.0f);
         if (var == 2) { ratB = 2.0f; mixA = 0.75f; mixB = 0.38f; useB = true; }
         break;
     case W_PULSE:
-        if (var == 1) { ratB = std::exp2(9.0f / 1200.0f); mixA = 0.62f; mixB = 0.62f; useB = true; }
-        if (var == 2) { ratB = 0.5f; mixA = 0.7f; mixB = 0.5f; useB = true; }
+        if (var == 1) pair(9.0f);
+        if (var == 2) { ratB = 2.0f; mixA = 0.75f; mixB = 0.38f; useB = true; }
         break;
     case W_TRI:
         if (var == 2) { ratB = 2.0f; mixA = 0.8f; mixB = 0.4f; useB = true; }
@@ -1269,7 +1277,7 @@ void Engine::toneChunk(Voice &v, int t, float *L, float *R, float *mod2, bool wa
         case W_SQR:
         case W_PULSE:
         case W_TRI: {
-            y = tv.o[0].tick(tab, wA, cInc, reset, wr, wd);
+            y = tv.o[0].tick(tab, wA, cInc * ratA, reset, wr, wd);
             if (useB) {
                 int w2;
                 float d2;
@@ -1336,7 +1344,7 @@ void Engine::toneChunk(Voice &v, int t, float *L, float *R, float *mod2, bool wa
                 } else
                     s += x * side;
             }
-            y = s * 0.3f;
+            y = s * SS_GAIN[var];
             break;
         }
         default: break;
