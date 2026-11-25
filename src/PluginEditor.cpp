@@ -1435,8 +1435,8 @@ void Panel::paint(juce::Graphics &g)
             juce::Path ring(body);
             ring.setUsingNonZeroWinding(false);
             ring.addPath(panel);
-            drawSurface(tg, ring, 1, sc, 0.45f);
-            drawSurface(tg, panel, 0, sc, 0.42f);
+            drawSurface(tg, ring, 1, sc, 0.3f);
+            drawSurface(tg, panel, 0, sc, 0.24f);
         }
         dust = juce::Image(juce::Image::ARGB, w, h, true);
         {
