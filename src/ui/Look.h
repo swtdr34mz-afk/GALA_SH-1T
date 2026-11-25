@@ -47,10 +47,11 @@ void drawFader(juce::Graphics &, juce::Rectangle<float> r, float pos, bool bipol
 void drawButton(juce::Graphics &, juce::Rectangle<float> r, juce::Colour lit, bool down, bool over);
 void drawLed(juce::Graphics &, juce::Point<float> c, float size, juce::Colour colour, float level);
 void drawTag(juce::Graphics &, juce::Rectangle<float> r);
-/* years in a cellar, on the body and the panel (under the controls): the plastic gone yellow, water and coffee
- * marks, rust round the screws, legends rubbed off where hands went */
-void drawAgingUnder(juce::Graphics &, juce::Rectangle<float> r, const std::vector<juce::Rectangle<float>> &worn);
-/* ... and over everything (dust, grime in the corners, scratches, a cobweb): drawn once into an image */
+/* a relic job, on the body and the panel (under the controls): checked lacquer, worn through at the edges, the paint
+ * polished thin where hands rest, the frames' paint chipped, the print rubbed where fingers went (worn: those legends) */
+void drawAgingUnder(juce::Graphics &, juce::Rectangle<float> r, const std::vector<juce::Rectangle<float>> &worn,
+                    const std::vector<juce::Rectangle<float>> &frames);
+/* ... and over everything (a warm tone, fine scratch clusters, a few dings): drawn once into an image */
 void drawAgingOver(juce::Graphics &, juce::Rectangle<float> r);
 void drawScrew(juce::Graphics &, juce::Point<float> c, float r, int seed);
 } // namespace glui

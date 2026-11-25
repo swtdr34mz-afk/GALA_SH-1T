@@ -391,9 +391,7 @@ public:
         auto s = r.reduced(6.0f);
         g.setGradientFill(juce::ColourGradient(juce::Colour(0xff0d1a22), s.getX(), s.getY(), juce::Colour(0xff060b0f), s.getX(), s.getBottom(), false));
         g.fillRoundedRectangle(s, 3.0f);
-        /* (years old: a dead column, a dim corner) */
-        g.setColour(juce::Colour(0x18ffffff));
-        g.fillRect(s.getX() + s.getWidth() * 0.71f, s.getY() + 2.0f, 1.5f, s.getHeight() - 4.0f);
+        /* (years old: a corner gone a little dim) */
         g.setGradientFill(juce::ColourGradient(juce::Colour(0x70000000), s.getRight(), s.getBottom(), juce::Colour(0x00000000), s.getRight() - 120.0f, s.getBottom() - 30.0f, true));
         g.fillRoundedRectangle(s, 3.0f);
         g.setColour(col::lcd);
@@ -1401,18 +1399,19 @@ void Panel::paint(juce::Graphics &g)
             bg.setColour(col::dim);
             bg.setFont(font(Face::title, 13.0f));
             bg.drawText("SYNTHESIZER   -   TRANCE GATE", juce::Rectangle<float>(50, 92, 300, 18), juce::Justification::centredLeft, false);
-            std::vector<juce::Rectangle<float>> worn;
-            for (auto &l : legends) {
+            for (auto &l : legends)
                 drawLegend(bg, l.text, l.r, l.size, l.c);
-                worn.push_back(l.r);
-            }
             /* (the most-used: the gate's, the cutoff's, the arp's; the rest rubbed off a little at random) */
             std::vector<juce::Rectangle<float>> rubbed;
-            juce::Random rnd(42);
-            for (auto &w : worn)
-                if (rnd.nextFloat() < 0.5f)
-                    rubbed.push_back(w);
-            drawAgingUnder(bg, all.reduced(4.0f), rubbed);
+            for (auto &l : legends)
+                for (auto *used : {"CUTOFF", "RESO", "RATE", "LEVEL", "PITCH", "DETUNE", "A", "D", "R", "ENV DEPTH", "DEPTH",
+                                   "SHAPE", "WAVE", "MODE", "TEMPO", "PORTA TIME", "ATTACK", "RELEASE", "FILTER", "PLAY/STOP", "REC"})
+                    if (l.text == used)
+                        rubbed.push_back(l.r);
+            std::vector<juce::Rectangle<float>> frames;
+            for (auto &s : sections)
+                frames.push_back(s.first);
+            drawAgingUnder(bg, all.reduced(4.0f), rubbed, frames);
             int seed = 3;
             for (auto p : {juce::Point<float>(30, 30), juce::Point<float>(W - 30.0f, 30), juce::Point<float>(30, H - 30.0f),
                            juce::Point<float>(W - 30.0f, H - 30.0f), juce::Point<float>(W * 0.5f, 26), juce::Point<float>(W * 0.5f, H - 26.0f)})

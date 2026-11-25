@@ -67,9 +67,9 @@ void drawBody(juce::Graphics &g, juce::Rectangle<float> r)
     using namespace juce;
     /* the white body: a soft sheen, rounded */
     /* (once white: years of light and cellar air have made it ivory, darker at the edges) */
-    g.setGradientFill(ColourGradient(Colour(0xffd9cba0), r.getX(), r.getY(), Colour(0xffa89366), r.getX(), r.getBottom(), false));
+    g.setGradientFill(ColourGradient(Colour(0xffe8dcb8), r.getX(), r.getY(), Colour(0xffcdb98c), r.getX(), r.getBottom(), false));
     g.fillRoundedRectangle(r, 26.0f);
-    g.setGradientFill(ColourGradient(Colours::transparentBlack, r.getCentreX(), r.getCentreY(), Colour(0x80604a1c), r.getX(), r.getY(), true));
+    g.setGradientFill(ColourGradient(Colours::transparentBlack, r.getCentreX(), r.getCentreY(), Colour(0x50704e1c), r.getX(), r.getY(), true));
     g.fillRoundedRectangle(r, 26.0f);
     g.setColour(Colour(0xffa89c78));
     g.drawRoundedRectangle(r.reduced(1.0f), 26.0f, 2.0f);
@@ -78,7 +78,7 @@ void drawBody(juce::Graphics &g, juce::Rectangle<float> r)
     g.setGradientFill(ColourGradient(Colour(0xff303338), p.getX(), p.getY(), Colour(0xff222428), p.getX(), p.getBottom(), false));
     g.fillRoundedRectangle(p, 14.0f);
     Random rnd(7);
-    for (int i = 0; i < 900; i++) {
+    for (int i = 0; i < 1400; i++) {
         float y = p.getY() + rnd.nextFloat() * p.getHeight();
         float x = p.getX() + rnd.nextFloat() * p.getWidth();
         g.setColour(Colours::white.withAlpha(0.012f + 0.02f * rnd.nextFloat()));
@@ -244,28 +244,54 @@ void drawTag(juce::Graphics &g, juce::Rectangle<float> r)
     g.drawImage(tag, fit, juce::RectanglePlacement::stretchToFit, true);
 }
 
-/* ------------------------------------------------------------------------------- the cellar --- */
-static void stain(juce::Graphics &g, juce::Point<float> c, float rad, juce::Colour edge, juce::Random &rnd)
+/* ------------------------------------------------------------------------------- the relic --- */
+/* Aged as a custom shop relics a guitar: by hand, where the years would really have gone. The white lacquer toned to
+ * ivory and checked in fine cracks; worn through to the grey primer where the forearms and palms rest; the panel's
+ * paint polished thin to bare aluminium in front of the keys; the print rubbed where the fingers go; the screws dulled.
+ * No dirt for its own sake. */
+static void checking(juce::Graphics &g, juce::Rectangle<float> area, int n, juce::Random &rnd, juce::Colour c)
 {
     using namespace juce;
-    /* a dried drop: faint inside, a darker rim, not quite round */
+    /* lacquer checks: fine, mostly across, each a little wavy, in clusters */
+    for (int i = 0; i < n; i++) {
+        float x = area.getX() + rnd.nextFloat() * area.getWidth(), y = area.getY() + rnd.nextFloat() * area.getHeight();
+        float len = 10.0f + rnd.nextFloat() * 46.0f, tilt = (rnd.nextFloat() - 0.5f) * 0.35f;
+        Path p;
+        p.startNewSubPath(x, y);
+        int segs = 4;
+        for (int k = 1; k <= segs; k++)
+            p.lineTo(x + len * (float)k / (float)segs, y + tilt * len * (float)k / (float)segs + (rnd.nextFloat() - 0.5f) * 1.6f);
+        g.setColour(c.withMultipliedAlpha(0.5f + 0.5f * rnd.nextFloat()));
+        g.strokePath(p, PathStrokeType(0.55f));
+        g.setColour(Colours::white.withAlpha(0.25f));
+        g.strokePath(p, PathStrokeType(0.5f), AffineTransform::translation(0.0f, 0.7f));
+    }
+}
+
+static void wearPatch(juce::Graphics &g, juce::Point<float> c, float rx, float ry, juce::Colour bare, juce::Random &rnd)
+{
+    using namespace juce;
+    /* the finish worn through: an irregular soft-edged patch, a thin darker rim where the lacquer ends */
     Path p;
-    const int n = 28;
+    const int n = 36;
+    float ph = rnd.nextFloat() * 6.0f;
     for (int i = 0; i <= n; i++) {
         float a = MathConstants<float>::twoPi * (float)i / (float)n;
-        float rr = rad * (0.85f + 0.25f * rnd.nextFloat());
-        auto q = c.getPointOnCircumference(rr, a);
+        float w = 0.78f + 0.14f * std::sin(a * 3.0f + ph) + 0.1f * rnd.nextFloat();
+        Point<float> q(c.x + std::sin(a) * rx * w, c.y - std::cos(a) * ry * w);
         if (i == 0)
             p.startNewSubPath(q);
         else
             p.lineTo(q);
     }
     p.closeSubPath();
-    p = p.createPathWithRoundedCorners(rad * 0.3f);
-    g.setColour(edge.withMultipliedAlpha(0.25f));
+    p = p.createPathWithRoundedCorners(6.0f);
+    g.setColour(Colours::black.withAlpha(0.18f));
+    g.strokePath(p, PathStrokeType(1.6f));
+    g.setColour(bare);
     g.fillPath(p);
-    g.setColour(edge);
-    g.strokePath(p, PathStrokeType(jmax(1.0f, rad * 0.06f)));
+    g.setGradientFill(ColourGradient(Colours::white.withAlpha(0.10f), c.x, c.y - ry * 0.4f, Colours::transparentWhite, c.x, c.y + ry, false));
+    g.fillPath(p);
 }
 
 void drawScrew(juce::Graphics &g, juce::Point<float> c, float rr, int seed)
@@ -273,56 +299,96 @@ void drawScrew(juce::Graphics &g, juce::Point<float> c, float rr, int seed)
     using namespace juce;
     Random rnd(seed);
     auto r = Rectangle<float>(rr * 2.0f, rr * 2.0f).withCentre(c);
-    g.setColour(Colour(0x60000000));
-    g.fillEllipse(r.translated(0.0f, 1.5f));
-    g.setGradientFill(ColourGradient(Colour(0xffb9b4a8), r.getX(), r.getY(), Colour(0xff5d554a), r.getRight(), r.getBottom(), false));
+    g.setColour(Colour(0x50000000));
+    g.fillEllipse(r.translated(0.0f, 1.2f));
+    /* nickel gone dull: grey, a little warm, the head's edge still bright */
+    g.setGradientFill(ColourGradient(Colour(0xffc2bdb2), r.getX(), r.getY(), Colour(0xff6e685e), r.getRight(), r.getBottom(), false));
     g.fillEllipse(r);
-    /* rust bleeding out from it */
-    for (int i = 0; i < 14; i++) {
-        float a = rnd.nextFloat() * MathConstants<float>::twoPi, d = rr * (0.2f + 1.3f * rnd.nextFloat());
-        g.setColour(Colour(0xff8a4a1c).withAlpha(0.15f + 0.35f * rnd.nextFloat()));
-        g.fillEllipse(Rectangle<float>(rr * 0.5f, rr * 0.5f).withCentre(c.getPointOnCircumference(d, a)));
-    }
-    g.setColour(Colour(0xff3a3430));
+    g.setColour(Colour(0x30584a30));
+    g.fillEllipse(r.reduced(rr * 0.25f));
+    g.setColour(Colours::white.withAlpha(0.35f));
+    g.drawEllipse(r.reduced(0.6f), 0.8f);
     float a = rnd.nextFloat() * MathConstants<float>::pi;
-    g.drawLine(Line<float>(c.getPointOnCircumference(rr * 0.75f, a), c.getPointOnCircumference(rr * 0.75f, a + MathConstants<float>::pi)), rr * 0.25f);
+    g.setColour(Colour(0xff35302a));
+    g.drawLine(Line<float>(c.getPointOnCircumference(rr * 0.72f, a), c.getPointOnCircumference(rr * 0.72f, a + MathConstants<float>::pi)), rr * 0.24f);
 }
 
-void drawAgingUnder(juce::Graphics &g, juce::Rectangle<float> r, const std::vector<juce::Rectangle<float>> &worn)
+void drawAgingUnder(juce::Graphics &g, juce::Rectangle<float> r, const std::vector<juce::Rectangle<float>> &worn,
+                    const std::vector<juce::Rectangle<float>> &frames)
 {
     using namespace juce;
     Random rnd(1971);
-    /* the legends rubbed off where hands went for years: patches of the panel's own grey over the print */
-    for (auto &w : worn) {
-        for (int i = 0; i < 3; i++) {
-            auto c = Point<float>(w.getX() + rnd.nextFloat() * w.getWidth(), w.getY() + rnd.nextFloat() * w.getHeight());
-            float rad = 4.0f + rnd.nextFloat() * 9.0f;
-            g.setGradientFill(ColourGradient(col::section.withAlpha(0.92f), c.x, c.y, col::section.withAlpha(0.0f), c.x + rad, c.y, true));
-            g.fillEllipse(Rectangle<float>(rad * 2.0f, rad * 2.0f).withCentre(c));
+    const Colour primer(0xff8c8476);
+    /* the body: worn through along the front edge where the forearms rest, and at the corners that met cases and
+     * stands; checking over the lacquer */
+    {
+        Graphics::ScopedSaveState st(g);
+        Path body, panel;
+        body.addRoundedRectangle(r, 24.0f);
+        panel.addRoundedRectangle(r.reduced(12.0f), 14.0f);
+        body.setUsingNonZeroWinding(false);
+        body.addPath(panel);
+        g.reduceClipRegion(body);
+        for (int i = 0; i < 7; i++)
+            wearPatch(g, {r.getX() + r.getWidth() * (0.08f + 0.12f * (float)i + 0.04f * rnd.nextFloat()), r.getBottom() - 2.0f},
+                      34.0f + rnd.nextFloat() * 70.0f, 10.0f + rnd.nextFloat() * 6.0f, primer, rnd);
+        for (auto c : {r.getTopLeft(), r.getTopRight(), r.getBottomLeft(), r.getBottomRight()})
+            wearPatch(g, c.translated(c.x < r.getCentreX() ? 6.0f : -6.0f, c.y < r.getCentreY() ? 6.0f : -6.0f), 22.0f, 18.0f, primer, rnd);
+        checking(g, r.withHeight(16.0f), 110, rnd, Colour(0xb05a4a2a));
+        checking(g, r.withTop(r.getBottom() - 16.0f), 120, rnd, Colour(0xb05a4a2a));
+        checking(g, r.withWidth(16.0f), 30, rnd, Colour(0xb05a4a2a));
+        checking(g, r.withLeft(r.getRight() - 16.0f), 30, rnd, Colour(0xb05a4a2a));
+    }
+    /* the panel: its paint polished thin in front of the keys, where palms rest, and round the most-used controls */
+    auto bare = [&](Point<float> c, float rx, float ry, float a) {
+        g.setGradientFill(ColourGradient(Colour(0xff6f7276).withAlpha(a), c.x, c.y, Colour(0xff6f7276).withAlpha(0.0f), c.x + rx, c.y, true));
+        g.fillEllipse(Rectangle<float>(rx * 2.0f, ry * 2.0f).withCentre(c));
+        /* brushed: fine lines across */
+        for (int k = 0; k < 40; k++) {
+            float y = c.y - ry * 0.6f + rnd.nextFloat() * ry * 1.2f, x0 = c.x - rx * 0.7f + rnd.nextFloat() * rx * 0.4f;
+            g.setColour(Colours::white.withAlpha(0.03f + 0.04f * rnd.nextFloat() * a));
+            g.drawHorizontalLine((int)y, x0, x0 + rx * (0.4f + 0.8f * rnd.nextFloat()));
+        }
+    };
+    bare({r.getX() + r.getWidth() * 0.30f, r.getY() + r.getHeight() * 0.775f}, 170.0f, 24.0f, 0.8f);
+    bare({r.getX() + r.getWidth() * 0.62f, r.getY() + r.getHeight() * 0.777f}, 210.0f, 22.0f, 0.75f);
+    bare({r.getX() + r.getWidth() * 0.07f, r.getY() + r.getHeight() * 0.86f}, 70.0f, 70.0f, 0.35f);
+    /* the frames' paint chipped here and there, the dark showing through */
+    for (auto &f : frames) {
+        int n = 2 + rnd.nextInt(4);
+        for (int i = 0; i < n; i++) {
+            float t = rnd.nextFloat();
+            Point<float> c;
+            int side = rnd.nextInt(4);
+            c = side == 0 ? Point<float>(f.getX() + t * f.getWidth(), f.getY())
+              : side == 1 ? Point<float>(f.getX() + t * f.getWidth(), f.getBottom())
+              : side == 2 ? Point<float>(f.getX(), f.getY() + t * f.getHeight())
+                          : Point<float>(f.getRight(), f.getY() + t * f.getHeight());
+            if (side < 2 && c.x < f.getX() + 140.0f && side == 0)
+                continue;                                   /* (not through the title) */
+            float w = 3.0f + rnd.nextFloat() * 9.0f;
+            g.setColour(Colour(0xff2b2d31).withAlpha(0.9f));
+            g.fillEllipse(Rectangle<float>(side < 2 ? w : 4.0f, side < 2 ? 4.0f : w).withCentre(c));
         }
     }
-    /* water marks and a coffee ring on the panel, a tide line on the body */
-    stain(g, {r.getX() + r.getWidth() * 0.62f, r.getY() + r.getHeight() * 0.47f}, 46.0f, Colour(0x90a0783c), rnd);
-    stain(g, {r.getX() + r.getWidth() * 0.08f, r.getY() + r.getHeight() * 0.86f}, 120.0f, Colour(0x70b49a64), rnd);
-    stain(g, {r.getX() + r.getWidth() * 0.11f, r.getY() + r.getHeight() * 0.88f}, 80.0f, Colour(0x60b49a64), rnd);
-    stain(g, {r.getX() + r.getWidth() * 0.52f, r.getY() + r.getHeight() * 0.10f}, 30.0f, Colour(0x80a0783c), rnd);
-    stain(g, {r.getX() + r.getWidth() * 0.23f, r.getY() + r.getHeight() * 0.70f}, 26.0f, Colour(0x80c8b48a), rnd);
-    stain(g, {r.getX() + r.getWidth() * 0.86f, r.getY() + r.getHeight() * 0.25f}, 18.0f, Colour(0x70c8b48a), rnd);
-    {
-        /* the coffee ring: a mug stood here once */
-        auto c = Point<float>(r.getX() + r.getWidth() * 0.415f, r.getY() + r.getHeight() * 0.33f);
-        g.setColour(Colour(0x9a5a3214));
-        g.drawEllipse(Rectangle<float>(78.0f, 74.0f).withCentre(c), 3.5f);
-        g.setColour(Colour(0x505a3214));
-        g.drawEllipse(Rectangle<float>(84.0f, 80.0f).withCentre(c.translated(2.0f, 1.0f)), 6.0f);
+    /* polished by hands round the knobs played most: a faint sheen on the paint */
+    for (auto &w : worn) {
+        if (w.getWidth() < 70.0f)
+            continue;                                       /* (knobs only: a fader's legend is narrow) */
+        auto c = Point<float>(w.getCentreX(), w.getBottom() + 32.0f);
+        ColourGradient cg(Colours::white.withAlpha(0.0f), c.x, c.y, Colours::white.withAlpha(0.0f), c.x + 54.0f, c.y, true);
+        cg.addColour(0.6, Colours::white.withAlpha(0.07f));
+        g.setGradientFill(cg);
+        g.fillEllipse(Rectangle<float>(108.0f, 100.0f).withCentre(c));
     }
-    /* the bottom of the body: where the cellar floor's damp crept up */
-    g.setGradientFill(ColourGradient(Colour(0x00705a30), r.getX(), r.getBottom() - 110.0f, Colour(0x90705a30), r.getX(), r.getBottom(), false));
-    g.fillRect(r.withTop(r.getBottom() - 110.0f));
-    for (int i = 0; i < 40; i++) {
-        float x = r.getX() + rnd.nextFloat() * r.getWidth();
-        g.setColour(Colour(0xff6a5228).withAlpha(0.08f + 0.12f * rnd.nextFloat()));
-        g.fillEllipse(x, r.getBottom() - 6.0f - rnd.nextFloat() * 40.0f, 3.0f + rnd.nextFloat() * 9.0f, 2.0f + rnd.nextFloat() * 6.0f);
+    /* the print rubbed where fingers went */
+    for (auto &w : worn) {
+        for (int i = 0; i < 2; i++) {
+            auto c = Point<float>(w.getX() + rnd.nextFloat() * w.getWidth(), w.getY() + w.getHeight() * (0.3f + 0.5f * rnd.nextFloat()));
+            float rad = 3.0f + rnd.nextFloat() * 7.0f;
+            g.setGradientFill(ColourGradient(col::section.withAlpha(0.85f), c.x, c.y, col::section.withAlpha(0.0f), c.x + rad, c.y, true));
+            g.fillEllipse(Rectangle<float>(rad * 2.0f, rad * 1.4f).withCentre(c));
+        }
     }
 }
 
@@ -330,96 +396,32 @@ void drawAgingOver(juce::Graphics &g, juce::Rectangle<float> r)
 {
     using namespace juce;
     Random rnd(1983);
-    /* grime in the corners and along the edges */
-    for (auto c : {r.getTopLeft(), r.getTopRight(), r.getBottomLeft(), r.getBottomRight()}) {
-        g.setGradientFill(ColourGradient(Colour(0xa0362a14), c.x, c.y, Colour(0x00362a14), c.x + (c.x < r.getCentreX() ? 330.0f : -330.0f), c.y, true));
-        g.fillEllipse(Rectangle<float>(660.0f, 660.0f).withCentre(c));
-    }
-    /* dust: thousands of specks, a few fluffs, thicker in the lower half (it settled) */
-    for (int i = 0; i < 22000; i++) {
-        float x = r.getX() + rnd.nextFloat() * r.getWidth();
-        float y = r.getY() + std::sqrt(rnd.nextFloat()) * r.getHeight();
-        float s = 0.6f + rnd.nextFloat() * rnd.nextFloat() * 2.4f;
-        bool light = rnd.nextFloat() < 0.65f;
-        g.setColour((light ? Colour(0xffd8cfb8) : Colour(0xff4a3e2a)).withAlpha(0.16f + 0.4f * rnd.nextFloat()));
-        g.fillEllipse(x, y, s, s);
-    }
-    for (int i = 0; i < 80; i++) {
-        Path p;
-        float x = r.getX() + rnd.nextFloat() * r.getWidth(), y = r.getY() + rnd.nextFloat() * r.getHeight();
-        p.startNewSubPath(x, y);
-        for (int k = 0; k < 5; k++)
-            p.lineTo(x += rnd.nextFloat() * 10.0f - 5.0f, y += rnd.nextFloat() * 8.0f - 4.0f);
-        g.setColour(Colour(0xffcfc6b0).withAlpha(0.25f + 0.2f * rnd.nextFloat()));
-        g.strokePath(p, PathStrokeType(0.7f));
-    }
-    /* a film of grey over all of it */
-    g.setColour(Colour(0x26a89c80));
+    /* a faint warmth over everything (the years' light), deeper toward the edges */
+    g.setGradientFill(ColourGradient(Colour(0x00a08050), r.getCentreX(), r.getCentreY(), Colour(0x22704f24), r.getX(), r.getY(), true));
     g.fillRect(r);
-    /* a dusty haze, thicker in patches */
-    for (int i = 0; i < 18; i++) {
-        auto c = Point<float>(r.getX() + rnd.nextFloat() * r.getWidth(), r.getY() + rnd.nextFloat() * r.getHeight());
-        float rad = 80.0f + rnd.nextFloat() * 220.0f;
-        g.setGradientFill(ColourGradient(Colour(0x22b8ab8c), c.x, c.y, Colour(0x00b8ab8c), c.x + rad, c.y, true));
-        g.fillEllipse(Rectangle<float>(rad * 2.0f, rad * 2.0f).withCentre(c));
-    }
-    /* scratches: long fine ones, a few deep */
-    for (int i = 0; i < 140; i++) {
-        float x = r.getX() + rnd.nextFloat() * r.getWidth(), y = r.getY() + rnd.nextFloat() * r.getHeight();
-        float a = rnd.nextFloat() * MathConstants<float>::pi, len = 15.0f + rnd.nextFloat() * rnd.nextFloat() * 220.0f;
-        Path p;
-        p.startNewSubPath(x, y);
-        p.quadraticTo(x + std::cos(a) * len * 0.5f + rnd.nextFloat() * 8.0f, y + std::sin(a) * len * 0.5f,
-                      x + std::cos(a) * len, y + std::sin(a) * len);
-        bool deep = rnd.nextFloat() < 0.12f;
-        g.setColour(Colours::white.withAlpha(deep ? 0.3f : 0.09f + 0.1f * rnd.nextFloat()));
-        g.strokePath(p, PathStrokeType(deep ? 1.4f : 0.6f));
-        if (deep) {
-            g.setColour(Colours::black.withAlpha(0.25f));
-            g.strokePath(p, PathStrokeType(0.6f), AffineTransform::translation(0.6f, 0.8f));
-        }
-    }
-    /* a cobweb in the top right corner, and one low on the left */
-    auto web = [&](Point<float> c, float size, float a0, float a1) {
-        g.setColour(Colour(0xffe8e2d4).withAlpha(0.45f));
-        const int spokes = 7;
-        for (int k = 0; k < spokes; k++) {
-            float a = a0 + (a1 - a0) * (float)k / (float)(spokes - 1);
-            g.drawLine(Line<float>(c, c.getPointOnCircumference(size * (0.8f + 0.2f * rnd.nextFloat()), a)), 0.7f);
-        }
-        for (float rr = size * 0.15f; rr < size; rr += size * (0.09f + 0.05f * rnd.nextFloat())) {
-            Path p;
-            for (int k = 0; k < spokes; k++) {
-                float a = a0 + (a1 - a0) * (float)k / (float)(spokes - 1);
-                auto q = c.getPointOnCircumference(rr * (0.92f + 0.12f * rnd.nextFloat()), a);
-                if (k == 0)
-                    p.startNewSubPath(q);
-                else
-                    p.quadraticTo(c.getPointOnCircumference(rr * 0.86f, a - (a1 - a0) / (float)(spokes - 1) * 0.5f), q);
-            }
-            g.strokePath(p, PathStrokeType(0.6f));
+    /* fine scratches in the finish: clusters, as from a belt buckle or a cable dragged over it, never everywhere */
+    auto cluster = [&](Point<float> c, float w, float h, int n) {
+        for (int i = 0; i < n; i++) {
+            float x = c.x + (rnd.nextFloat() - 0.5f) * w, y = c.y + (rnd.nextFloat() - 0.5f) * h;
+            float a = 1.2f + (rnd.nextFloat() - 0.5f) * 0.5f, len = 6.0f + rnd.nextFloat() * 40.0f;
+            g.setColour(Colours::white.withAlpha(0.05f + 0.09f * rnd.nextFloat()));
+            g.drawLine(x, y, x + std::sin(a) * len, y - std::cos(a) * len, 0.5f);
         }
     };
-    /* an old strip of masking tape, someone's note on it */
-    {
-        Graphics::ScopedSaveState st(g);
-        auto c = Point<float>(r.getX() + 254.0f, r.getY() + 492.0f);
-        g.addTransform(AffineTransform::rotation(-0.06f, c.x, c.y));
-        auto tape = Rectangle<float>(124.0f, 26.0f).withCentre(c);
-        g.setColour(Colour(0xd8d7c38c));
-        g.fillRect(tape);
-        g.setColour(Colour(0x40ffffff));
-        g.fillRect(tape.withHeight(4.0f));
-        g.setColour(Colour(0x60806a3a));
-        for (float x = tape.getX(); x < tape.getRight(); x += 5.0f) {
-            g.drawLine(x, tape.getY(), x + 2.0f, tape.getY() - 1.5f, 1.0f);
-            g.drawLine(x, tape.getBottom(), x + 2.0f, tape.getBottom() + 1.5f, 1.0f);
-        }
-        g.setColour(Colour(0xd0202a4a));
-        g.setFont(font(Face::mono, 14.0f).italicised());
-        g.drawText("TRANCE '09 !!", tape, Justification::centred, false);
+    cluster({r.getX() + r.getWidth() * 0.47f, r.getY() + r.getHeight() * 0.41f}, 220.0f, 90.0f, 45);
+    cluster({r.getX() + r.getWidth() * 0.83f, r.getY() + r.getHeight() * 0.62f}, 160.0f, 70.0f, 30);
+    cluster({r.getX() + r.getWidth() * 0.18f, r.getY() + r.getHeight() * 0.30f}, 120.0f, 60.0f, 20);
+    /* a few honest dings: tiny chips with a bright edge */
+    for (int i = 0; i < 10; i++) {
+        auto c = Point<float>(r.getX() + rnd.nextFloat() * r.getWidth(), r.getY() + rnd.nextFloat() * r.getHeight());
+        float s = 1.5f + rnd.nextFloat() * 2.5f;
+        g.setColour(Colour(0x90141416));
+        g.fillEllipse(Rectangle<float>(s, s * 0.8f).withCentre(c));
+        g.setColour(Colours::white.withAlpha(0.18f));
+        g.drawEllipse(Rectangle<float>(s, s * 0.8f).withCentre(c.translated(0.4f, 0.4f)), 0.5f);
     }
-    web({r.getRight() - 6.0f, r.getY() + 6.0f}, 150.0f, MathConstants<float>::pi, MathConstants<float>::pi * 1.5f);
-    web({r.getX() + 6.0f, r.getBottom() - 6.0f}, 90.0f, 0.0f, MathConstants<float>::pi * 0.5f);
+    /* fine dust only where it would settle and stay: a light haze, no specks */
+    g.setColour(Colour(0x0cb8ab8c));
+    g.fillRect(r);
 }
 } // namespace glui
