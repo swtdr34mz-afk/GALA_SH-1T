@@ -165,10 +165,10 @@ void drawKnob(juce::Graphics &g, juce::Rectangle<float> r, float pos, bool bipol
     for (int i = 0; i < ribs; i++) {
         float a = MathConstants<float>::twoPi * (float)i / (float)ribs;
         float lit = 0.5f + 0.5f * std::cos(a + 0.75f);                       /* the light from the top left */
-        g.setColour(Colours::white.withAlpha(0.015f + 0.08f * lit * lit));
+        g.setColour(Colours::white.withAlpha(0.02f + 0.16f * lit * lit));
         g.drawLine(Line<float>(skirtTop.getCentre().getPointOnCircumference(rb * 0.80f, a), skirtTop.getCentre().getPointOnCircumference(rb * 0.985f, a)),
                    jmax(0.7f, d * 0.016f));
-        g.setColour(Colours::black.withAlpha(0.25f));
+        g.setColour(Colours::black.withAlpha(0.5f));
         g.drawLine(Line<float>(skirtTop.getCentre().getPointOnCircumference(rb * 0.80f, a + 0.07f), skirtTop.getCentre().getPointOnCircumference(rb * 0.985f, a + 0.07f)),
                    jmax(0.5f, d * 0.01f));
     }
@@ -250,9 +250,9 @@ void drawFader(juce::Graphics &g, juce::Rectangle<float> r, float pos, bool bipo
     /* the ridges you'd feel under a fingertip */
     for (int k = 1; k <= 4; k++) {
         float yy = face.getY() + face.getHeight() * (0.12f * (float)k);
-        g.setColour(Colours::white.withAlpha(0.035f));
+        g.setColour(Colours::white.withAlpha(0.07f));
         g.drawHorizontalLine((int)yy, face.getX() + 2.5f, face.getRight() - 2.5f);
-        g.setColour(Colours::black.withAlpha(0.16f));
+        g.setColour(Colours::black.withAlpha(0.35f));
         g.drawHorizontalLine((int)yy + 1, face.getX() + 2.5f, face.getRight() - 2.5f);
     }
     g.setGradientFill(ColourGradient(Colours::white.withAlpha(0.22f), face.getX(), face.getY(), Colours::white.withAlpha(0.0f), face.getRight(), face.getY(), false));
