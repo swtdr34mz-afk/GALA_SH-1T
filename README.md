@@ -64,7 +64,8 @@ Die Plugins laufen auf Apple Silicon und Intel-Macs (eine Datei für beide).
 - **HOST SYNC**: the gate, the arpeggio, synced LFOs and delays follow the DAW's tempo and position.
 
 Tips: SELECT with **Shift** picks several tones at once (the knobs then edit all of them). In the gate: drag to draw
-levels, right-click for a tie, Shift-click for a rest. Double-click a knob: its default.
+levels, Alt-click for a tie, Shift-click for a rest. Double-click a knob: its default. **Right-click** a knob, fader,
+button or LED choice: the DAW's own menu for that parameter (MIDI Learn, automation); a right-click never changes a value.
 
 ## Building
 

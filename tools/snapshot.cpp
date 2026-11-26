@@ -45,6 +45,37 @@ int main(int argc, char **argv)
         for (auto *k : c->getChildren())
             if (auto *lv = dynamic_cast<GalaPanel::Live *>(k))
                 lv->poll();
+    {
+        /* a right-click (and a right-drag) on every control: the host's menu, never a new value */
+        std::vector<float> before;
+        for (auto *q : proc->getParameters())
+            before.push_back(q->getValue());
+        int clicked = 0;
+        for (auto *c : ed->getChildren())
+            for (auto *k : c->getChildren()) {
+                if (dynamic_cast<juce::MidiKeyboardComponent *>(k))
+                    continue;
+                auto mods = juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier);
+                auto at = k->getLocalBounds().getCentre().toFloat();
+                auto t = juce::Time::getCurrentTime();
+                juce::MouseEvent down(juce::Desktop::getInstance().getMainMouseSource(), at, mods, 1.0f, 0, 0, 0, 0, k, k, t, at, t, 1, false);
+                juce::MouseEvent drag(juce::Desktop::getInstance().getMainMouseSource(), at.translated(0, -40), mods, 1.0f, 0, 0, 0, 0, k, k, t, at, t, 1, false);
+                k->mouseDown(down);
+                k->mouseDrag(drag);
+                k->mouseUp(drag);
+                clicked++;
+            }
+        int changed = 0;
+        auto params = proc->getParameters();
+        for (int i = 0; i < params.size(); i++)
+            if (params[i]->getValue() != before[(size_t)i]) {
+                std::printf("right-click changed %s\n", params[i]->getName(40).toRawUTF8());
+                changed++;
+            }
+        std::printf("right-click on %d controls: %d values changed\n", clicked, changed);
+        if (changed)
+            return 1;
+    }
     auto img = ed->createComponentSnapshot(ed->getLocalBounds(), true, scale);
     juce::File f = juce::File::getCurrentWorkingDirectory().getChildFile(out);
     f.deleteFile();

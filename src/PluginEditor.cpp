@@ -102,6 +102,20 @@ int defOf(Panel &P, const Bind &b)
     return 0;
 }
 
+/* a right-click on a control: the host's own menu for its parameter (MIDI Learn, automation ...), never a change of
+ * its value. true: it was a right-click (the caller does nothing more) */
+bool hostMenu(juce::Component &c, const juce::MouseEvent &e, juce::RangedAudioParameter *p)
+{
+    if (!e.mods.isPopupMenu())
+        return false;
+    if (p)
+        if (auto *ed = c.findParentComponentOfClass<juce::AudioProcessorEditor>())
+            if (auto *host = ed->getHostContext())
+                if (auto menu = host->getContextMenuForParameter(p))
+                    menu->showNativeMenu(ed->getMouseXYRelative());
+    return true;
+}
+
 /* ------------------------------------------------------------------------------- a knob --- */
 class Knob : public juce::Component, public Panel::Live
 {
@@ -134,12 +148,16 @@ public:
     }
     void mouseDown(const juce::MouseEvent &e) override
     {
+        if (hostMenu(*this, e, shownParam(P, cur)))
+            return;
         startY = e.position.y;
         startV = ival(P, cur);
         touchIt();
     }
     void mouseDrag(const juce::MouseEvent &e) override
     {
+        if (e.mods.isPopupMenu())
+            return;
         int lo, hi;
         rangeOf(P, cur, lo, hi);
         float px = juce::jlimit(1.2f, 16.0f, 220.0f / (float)juce::jmax(1, hi - lo)) * (e.mods.isShiftDown() ? 4.0f : 1.0f);
@@ -153,7 +171,11 @@ public:
         if (d)
             setv(P, cur, ival(P, cur) + d);
     }
-    void mouseDoubleClick(const juce::MouseEvent &) override { setv(P, cur, defOf(P, cur)); }
+    void mouseDoubleClick(const juce::MouseEvent &e) override
+    {
+        if (!e.mods.isPopupMenu())
+            setv(P, cur, defOf(P, cur));
+    }
 
 private:
     void touchIt()
@@ -191,9 +213,21 @@ public:
             repaint();
         }
     }
-    void mouseDown(const juce::MouseEvent &e) override { at(e); }
-    void mouseDrag(const juce::MouseEvent &e) override { at(e); }
-    void mouseDoubleClick(const juce::MouseEvent &) override { setv(P, bind, defOf(P, bind)); }
+    void mouseDown(const juce::MouseEvent &e) override
+    {
+        if (!hostMenu(*this, e, shownParam(P, bind)))
+            at(e);
+    }
+    void mouseDrag(const juce::MouseEvent &e) override
+    {
+        if (!e.mods.isPopupMenu())
+            at(e);
+    }
+    void mouseDoubleClick(const juce::MouseEvent &e) override
+    {
+        if (!e.mods.isPopupMenu())
+            setv(P, bind, defOf(P, bind));
+    }
     void mouseWheelMove(const juce::MouseEvent &, const juce::MouseWheelDetails &w) override
     {
         int d = w.deltaY > 0 ? 1 : w.deltaY < 0 ? -1 : 0;
@@ -232,6 +266,7 @@ public:
     {
     }
     std::function<void(bool)> momentary;           /* (held: down true, up false) */
+    std::function<juce::RangedAudioParameter *()> param;   /* what it switches (its host menu on a right-click) */
     std::function<juce::String()> dynText;
     void paint(juce::Graphics &g) override
     {
@@ -256,6 +291,11 @@ public:
     }
     void mouseDown(const juce::MouseEvent &e) override
     {
+        if (hostMenu(*this, e, param ? param() : nullptr)) {
+            rightClick = true;
+            return;
+        }
+        rightClick = false;
         down = true;
         repaint();
         if (momentary)
@@ -265,6 +305,8 @@ public:
     }
     void mouseUp(const juce::MouseEvent &) override
     {
+        if (rightClick)
+            return;
         down = false;
         repaint();
         if (momentary)
@@ -277,6 +319,7 @@ public:
     std::function<void(const juce::MouseEvent &)> click;
     juce::String text, shownText;
     int seed;
+    bool rightClick = false;
     juce::Colour shown = juce::Colours::transparentBlack;
     bool down = false;
 };
@@ -314,6 +357,8 @@ public:
     }
     void mouseDown(const juce::MouseEvent &e) override
     {
+        if (hostMenu(*this, e, shownParam(P, bind)))
+            return;
         int lo, hi;
         rangeOf(P, bind, lo, hi);
         for (int i = 0; i < names.size(); i++)
@@ -347,6 +392,7 @@ public:
     }
     float size = 14.0f;
     juce::Justification just = juce::Justification::centred;
+    std::function<juce::RangedAudioParameter *()> param;   /* (a box that sets one parameter: its host menu) */
     void paint(juce::Graphics &g) override
     {
         auto r = getLocalBounds().toFloat();
@@ -368,8 +414,10 @@ public:
             repaint();
         }
     }
-    void mouseDown(const juce::MouseEvent &) override
+    void mouseDown(const juce::MouseEvent &e) override
     {
+        if (hostMenu(*this, e, param ? param() : nullptr))
+            return;
         if (click)
             click();
     }
@@ -443,7 +491,11 @@ public:
             repaint();
         }
     }
-    void mouseDown(const juce::MouseEvent &) override { P.patchMenu(); }
+    void mouseDown(const juce::MouseEvent &e) override
+    {
+        if (!e.mods.isPopupMenu())
+            P.patchMenu();
+    }
 
 private:
     Panel &P;
@@ -503,14 +555,22 @@ public:
             repaint();
         }
     }
-    /* left: the level where the mouse is (drag across to draw); right (or Ctrl): a tie; Shift: a rest */
+    /* left: the level where the mouse is (drag across to draw); Alt: a tie; Shift: a rest. Right: the host's menu for
+     * the gate's pattern (a right-click never changes a step) */
     void mouseDown(const juce::MouseEvent &e) override
     {
-        mode = e.mods.isPopupMenu() || e.mods.isCtrlDown() ? 1 : e.mods.isShiftDown() ? 2 : 0;
+        rightClick = hostMenu(*this, e, P.proc.param(comIdx(C_GATE_PAT)));
+        if (rightClick)
+            return;
+        mode = e.mods.isAltDown() ? 1 : e.mods.isShiftDown() ? 2 : 0;
         lastStep = -1;
         draw(e);
     }
-    void mouseDrag(const juce::MouseEvent &e) override { draw(e); }
+    void mouseDrag(const juce::MouseEvent &e) override
+    {
+        if (!rightClick && !e.mods.isPopupMenu())
+            draw(e);
+    }
 
 private:
     void draw(const juce::MouseEvent &e)
@@ -536,6 +596,7 @@ private:
     Panel &P;
     std::array<uint8_t, GATE_STEPS> steps{};
     int len = 16, step = -1, mode = 0, lastStep = -1;
+    bool rightClick = false;
 };
 
 /* ------------------------------------------------------------------------------- the ARPEGGIO's 8 x 8 --- */
@@ -573,6 +634,8 @@ public:
     }
     void mouseDown(const juce::MouseEvent &e) override
     {
+        if (hostMenu(*this, e, P.proc.param(comIdx(C_ARP_VAR))))
+            return;
         int c = juce::jlimit(0, 7, (int)(e.position.x / ((float)getWidth() / 8.0f)));
         int r = juce::jlimit(0, 7, (int)(e.position.y / ((float)getHeight() / 8.0f)));
         setv(P, Bind::C(C_ARP_VAR), r * 8 + c);
@@ -623,8 +686,13 @@ public:
             repaint();
         }
     }
+    void mouseDown(const juce::MouseEvent &e) override { hostMenu(*this, e, P.proc.global("dbeam")); }
     void mouseMove(const juce::MouseEvent &e) override { hand(e); }
-    void mouseDrag(const juce::MouseEvent &e) override { hand(e); }
+    void mouseDrag(const juce::MouseEvent &e) override
+    {
+        if (!e.mods.isPopupMenu())
+            hand(e);
+    }
     void mouseExit(const juce::MouseEvent &) override
     {
         auto *q = P.proc.global("dbeam");
@@ -669,11 +737,19 @@ public:
         g.setColour(juce::Colours::white.withAlpha(0.7f));
         g.drawVerticalLine((int)cap.getCentreX(), cap.getY() + 4.0f, cap.getBottom() - 4.0f);
     }
-    void mouseDown(const juce::MouseEvent &e) override { at(e); }
-    void mouseDrag(const juce::MouseEvent &e) override { at(e); }
-    void mouseUp(const juce::MouseEvent &) override
+    void mouseDown(const juce::MouseEvent &e) override
     {
-        if (bend) {
+        if (!e.mods.isPopupMenu())
+            at(e);
+    }
+    void mouseDrag(const juce::MouseEvent &e) override
+    {
+        if (!e.mods.isPopupMenu())
+            at(e);
+    }
+    void mouseUp(const juce::MouseEvent &e) override
+    {
+        if (bend && !e.mods.isPopupMenu()) {
             v = 0.0f;
             P.proc.uiMidi.addMessageToQueue(juce::MidiMessage::pitchWheel(1, 8192).withTimeStamp(juce::Time::getMillisecondCounterHiRes() * 0.001));
             repaint();
@@ -863,6 +939,9 @@ void Panel::build()
     auto toggle = [&](Bind b) {
         return [this, b](const juce::MouseEvent &) { setv(*this, b, ival(*this, b) ? 0 : 1); };
     };
+    /* a button's (or box's) parameter, for the host's menu on a right-click */
+    auto P_ = [this](Bind b) { return [this, b]() { return shownParam(*this, b); }; };
+    auto PI_ = [&pr](int idx) { return [&pr, idx]() { return pr.param(idx); }; };
     auto litIf = [this](Bind b, Colour c) { return [this, b, c] { return ival(*this, b) ? c : Colours::transparentBlack; }; };
     auto cycle = [this](Bind b) {
         return [this, b](const juce::MouseEvent &e) {
@@ -903,6 +982,7 @@ void Panel::build()
                 fl->burst = 4 + r.nextInt(10);
             return Colours::transparentBlack;
         }, toggle(cm), "CIRCUIT MOD");
+        b->param = P_(cm);
         L("CIRCUIT MOD", 430, 44, 100, 12.0f, col::orange);
         K(520, 86, 40, Bind::C(C_CMOD_AGE), "AGE", col::orange);
         K(576, 86, 40, Bind::C(C_CMOD_DRIFT), "DRIFT", col::orange);
@@ -931,8 +1011,9 @@ void Panel::build()
         B(1490, 48, 62, 26, [] { return Colours::transparentBlack; }, [this](const juce::MouseEvent &) { writeDialog(); }, "WRITE");
         B(1490, 88, 62, 26, [] { return Colours::transparentBlack; }, [&pr](const juce::MouseEvent &) { pr.initPatch(); }, "INIT");
         auto *v = B(1560, 48, 96, 26, [] { return Colours::transparentBlack; }, cycle(Bind::G("voices")));
+        v->param = P_(Bind::G("voices"));
         v->dynText = [&pr] { return pr.global("voices")->getCurrentValueAsText() + " VOICES"; };
-        B(1560, 88, 96, 26, litIf(Bind::G("host_sync"), col::green), toggle(Bind::G("host_sync")), "HOST SYNC");
+        B(1560, 88, 96, 26, litIf(Bind::G("host_sync"), col::green), toggle(Bind::G("host_sync")), "HOST SYNC")->param = P_(Bind::G("host_sync"));
     }
 
     /* ============================================================ D BEAM */
@@ -947,7 +1028,7 @@ void Panel::build()
             float x = 46 + i * 43.0f;
             L(nm[i], x + 20, 326, 50, 11.0f);
             B(x, 344, 40, 24, [this, m, i] { return ival(*this, m) == i + 1 ? col::red : Colours::transparentBlack; },
-              [this, m, i](const juce::MouseEvent &) { setv(*this, m, ival(*this, m) == i + 1 ? 0 : i + 1); });
+              [this, m, i](const juce::MouseEvent &) { setv(*this, m, ival(*this, m) == i + 1 ? 0 : i + 1); })->param = P_(m);
         }
         L("ASSIGN TARGET", 109, 380, 120, 11.0f, col::dim);
         auto *t = add<TextBox>([&pr] { return juce::String(DBTARGET[pr.value(comIdx(C_DB_ASSIGN)) % NDBTARGET].name); }, [this] {
@@ -960,13 +1041,16 @@ void Panel::build()
                     setv(*self, Bind::C(C_DB_ASSIGN), r - 1);
             });
         });
+        t->param = PI_(comIdx(C_DB_ASSIGN));
         t->setBounds(44, 398, 130, 24);
         t->size = 13.0f;
         L("POLARITY", 70, 432, 60, 11.0f, col::dim);
         auto *pb = B(46, 450, 48, 24, [] { return Colours::transparentBlack; }, cycle(Bind::C(C_DB_POL)));
+        pb->param = P_(Bind::C(C_DB_POL));
         pb->dynText = [&pr] { return pr.value(comIdx(C_DB_POL)) ? juce::String("-") : juce::String("+"); };
         L("TONES", 136, 432, 60, 11.0f, col::dim);
         auto *tb = B(100, 450, 76, 24, [] { return Colours::transparentBlack; }, cycle(Bind::C(C_DB_TONES)));
+        tb->param = P_(Bind::C(C_DB_TONES));
         tb->dynText = [&pr] { static const char *n[4] = {"ALL", "T1", "T2", "T3"}; return juce::String(n[pr.value(comIdx(C_DB_TONES)) & 3]); };
     }
 
@@ -994,7 +1078,7 @@ void Panel::build()
             if (!pr.value(toneIdx(t, T_ON)))
                 return Colours::transparentBlack;
             return (t < 2 && pr.value(comIdx(C_MOD)) != MM_OFF) ? col::orange : col::red;
-        }, [&pr, t](const juce::MouseEvent &) { pr.setValue(toneIdx(t, T_ON), pr.value(toneIdx(t, T_ON)) ? 0 : 1); });
+        }, [&pr, t](const juce::MouseEvent &) { pr.setValue(toneIdx(t, T_ON), pr.value(toneIdx(t, T_ON)) ? 0 : 1); })->param = PI_(toneIdx(t, T_ON));
         (void)on;
     }
     L("TONE COPY", 259, 436, 100, 11.5f, col::dim);
@@ -1015,12 +1099,12 @@ void Panel::build()
     S(334, Y0, 624, Y1, "LFO", col::blue);
     {
         L("SHAPE", 372, 160, 60, 12.0f);
-        B(348, 176, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_LFO_SHAPE)));
+        B(348, 176, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_LFO_SHAPE)))->param = P_(Bind::T(T_LFO_SHAPE));
         add<Leds>(*this, Bind::T(T_LFO_SHAPE), juce::StringArray{"TRI", "SIN", "SAW", "SQR", "S&H", "RND"}, col::red)->setBounds(410, 160, 66, 108);
         L("TEMPO SYNC", 373, 212, 80, 11.0f);
-        B(348, 228, 50, 26, litIf(Bind::T(T_LFO_SYNC), col::red), toggle(Bind::T(T_LFO_SYNC)));
+        B(348, 228, 50, 26, litIf(Bind::T(T_LFO_SYNC), col::red), toggle(Bind::T(T_LFO_SYNC)))->param = P_(Bind::T(T_LFO_SYNC));
         L("KEY TRIG", 373, 262, 80, 11.0f);
-        B(348, 278, 50, 26, litIf(Bind::C(C_LFO_KEYTRIG), col::red), toggle(Bind::C(C_LFO_KEYTRIG)));
+        B(348, 278, 50, 26, litIf(Bind::C(C_LFO_KEYTRIG), col::red), toggle(Bind::C(C_LFO_KEYTRIG)))->param = P_(Bind::C(C_LFO_KEYTRIG));
         K(552, 214, 82, Bind::T(T_LFO_RATE), "RATE");
         L("SLOW", 522, 262, 40, 10.0f, col::dim);
         L("FAST", 584, 262, 40, 10.0f, col::dim);
@@ -1036,16 +1120,16 @@ void Panel::build()
     S(634, Y0, 994, Y1, "OSC", col::amber);
     {
         L("WAVE", 672, 160, 60, 12.0f);
-        B(648, 176, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_WAVE)));
+        B(648, 176, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_WAVE)))->param = P_(Bind::T(T_WAVE));
         add<Leds>(*this, Bind::T(T_WAVE), juce::StringArray{"SAW", "SQUARE", "PULSE", "TRI", "SINE", "NOISE", "SUPER SAW"}, col::red)
             ->setBounds(708, 156, 94, 130);
         L("VARIATION", 673, 216, 80, 11.0f);
-        B(648, 232, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_VAR)));
+        B(648, 232, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_VAR)))->param = P_(Bind::T(T_VAR));
         add<Leds>(*this, Bind::T(T_VAR), juce::StringArray{"1", "2", "3"}, col::green, true)->setBounds(644, 264, 60, 30);
         K(852, 196, 70, Bind::T(T_PITCH), "PITCH");
         K(940, 196, 70, Bind::T(T_DETUNE), "DETUNE");
         L("MOD (TONE 2 > 1)", 896, 248, 160, 11.0f, col::amber);
-        B(820, 266, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::C(C_MOD)));
+        B(820, 266, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::C(C_MOD)))->param = P_(Bind::C(C_MOD));
         add<Leds>(*this, Bind::C(C_MOD), juce::StringArray{"OFF", "SYNC", "RING"}, col::orange, true)->setBounds(874, 262, 112, 34);
         F(662, 334, 492, Bind::T(T_PWM), "PWM", juce::Colour(0xff6aa8ff));
         F(718, 334, 492, Bind::T(T_PW), "PW");
@@ -1059,10 +1143,10 @@ void Panel::build()
     S(1004, Y0, 1274, Y1, "FILTER", col::amber);
     {
         L("MODE", 1042, 160, 60, 12.0f);
-        B(1018, 176, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_FMODE)));
+        B(1018, 176, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_FMODE)))->param = P_(Bind::T(T_FMODE));
         add<Leds>(*this, Bind::T(T_FMODE), juce::StringArray{"LPF", "HPF", "BPF", "PKG", "BYPASS"}, col::red)->setBounds(1076, 156, 74, 96);
         L("SLOPE", 1042, 248, 60, 12.0f);
-        B(1018, 264, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_SLOPE)));
+        B(1018, 264, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_SLOPE)))->param = P_(Bind::T(T_SLOPE));
         add<Leds>(*this, Bind::T(T_SLOPE), juce::StringArray{"-12 dB", "-24 dB"}, col::red)->setBounds(1076, 258, 74, 40);
         K(1186, 192, 64, Bind::T(T_CUTOFF), "CUTOFF");
         K(1186, 278, 44, Bind::T(T_KEYF), "KEY FOLLOW");
@@ -1145,17 +1229,17 @@ void Panel::build()
             t->setBounds((int)cx - 26, 166, 52, 16);
             t->size = 11.0f;
         }
-        auto blk = [&](int col, int row, const char *leg, std::function<Colour()> lit, std::function<void()> act) {
+        auto blk = [&](int col, int row, const char *leg, std::function<Colour()> lit, std::function<void()> act, int param) {
             float x = 1462 + col * 51.0f, y = 268 + row * 54.0f;
             L(leg, x + 23, y - 16, 52, 10.0f);
-            B(x, y, 46, 26, std::move(lit), [act](const juce::MouseEvent &) { act(); });
+            B(x, y, 46, 26, std::move(lit), [act](const juce::MouseEvent &) { act(); })->param = PI_(comIdx(param));
         };
         auto typeBtn = [&](int c, int row, const char *leg, int param, int val, int block) {
             blk(c, row, leg, [&pr, param, val] { return pr.value(comIdx(param)) == val ? col::red : Colours::transparentBlack; },
                 [&pr, param, val, block] {
                     pr.setValue(comIdx(param), pr.value(comIdx(param)) == val ? 0 : val);
                     pr.fxSelect = block;
-                });
+                }, param);
         };
         typeBtn(0, 0, "DIST", C_DIST, DT_DIST, 0);
         typeBtn(0, 1, "FUZZ", C_DIST, DT_FUZZ, 0);
@@ -1166,13 +1250,13 @@ void Panel::build()
         typeBtn(2, 0, "DELAY", C_DELAY, DL_DELAY, 2);
         typeBtn(2, 1, "PAN DELAY", C_DELAY, DL_PANNING, 2);
         blk(2, 2, "TEMPO SYNC", [&pr] { return pr.value(comIdx(C_DELAY_SYNC)) ? col::red : Colours::transparentBlack; },
-            [&pr] { pr.setValue(comIdx(C_DELAY_SYNC), pr.value(comIdx(C_DELAY_SYNC)) ? 0 : 1); pr.fxSelect = 2; });
+            [&pr] { pr.setValue(comIdx(C_DELAY_SYNC), pr.value(comIdx(C_DELAY_SYNC)) ? 0 : 1); pr.fxSelect = 2; }, C_DELAY_SYNC);
         blk(3, 0, "REVERB", [&pr] { return pr.value(comIdx(C_REVERB)) ? col::red : Colours::transparentBlack; },
-            [&pr] { pr.setValue(comIdx(C_REVERB), pr.value(comIdx(C_REVERB)) ? 0 : 1); pr.fxSelect = 3; });
+            [&pr] { pr.setValue(comIdx(C_REVERB), pr.value(comIdx(C_REVERB)) ? 0 : 1); pr.fxSelect = 3; }, C_REVERB);
         blk(3, 1, "LOW BOOST", [&pr] { return pr.value(comIdx(C_LOWBOOST)) ? col::red : Colours::transparentBlack; },
-            [&pr] { pr.setValue(comIdx(C_LOWBOOST), pr.value(comIdx(C_LOWBOOST)) ? 0 : 1); pr.fxSelect = 4; });
+            [&pr] { pr.setValue(comIdx(C_LOWBOOST), pr.value(comIdx(C_LOWBOOST)) ? 0 : 1); pr.fxSelect = 4; }, C_LOWBOOST);
         blk(3, 2, "EFX ON", [&pr] { return pr.value(comIdx(C_FX_ON)) ? col::red : Colours::transparentBlack; },
-            [&pr] { pr.setValue(comIdx(C_FX_ON), pr.value(comIdx(C_FX_ON)) ? 0 : 1); });
+            [&pr] { pr.setValue(comIdx(C_FX_ON), pr.value(comIdx(C_FX_ON)) ? 0 : 1); }, C_FX_ON);
         L("SELECT CONTROL: the block last pressed", 1560, 432, 200, 9.5f, col::dim);
         L("(click the name above to step)", 1560, 446, 200, 9.5f, col::dim);
     }
@@ -1183,12 +1267,13 @@ void Panel::build()
     {
         L("for the mod lever", 220, 532, 150, 11.0f, col::dim);
         L("SHAPE", 72, 560, 60, 11.5f);
-        B(48, 576, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_MLFO_SHAPE)));
+        B(48, 576, 50, 26, [] { return Colours::transparentBlack; }, cycle(Bind::T(T_MLFO_SHAPE)))->param = P_(Bind::T(T_MLFO_SHAPE));
         auto *t = add<TextBox>([this] { return juce::String(LSHAPE_NAME[proc.value(toneIdx(tone(), T_MLFO_SHAPE)) % NLSHAPE]).toUpperCase(); });
+        t->param = P_(Bind::T(T_MLFO_SHAPE));
         t->setBounds(104, 578, 80, 22);
         t->size = 13.0f;
         L("TEMPO SYNC", 73, 612, 80, 11.0f);
-        B(48, 628, 50, 26, litIf(Bind::T(T_MLFO_SYNC), col::red), toggle(Bind::T(T_MLFO_SYNC)));
+        B(48, 628, 50, 26, litIf(Bind::T(T_MLFO_SYNC), col::red), toggle(Bind::T(T_MLFO_SYNC)))->param = P_(Bind::T(T_MLFO_SYNC));
         K(252, 616, 64, Bind::T(T_MLFO_RATE), "RATE");
         K(72, 720, 44, Bind::T(T_MLFO_PITCH), "PITCH", col::amber);
         K(138, 720, 44, Bind::T(T_MLFO_FILTER), "FILTER", col::amber);
@@ -1206,7 +1291,7 @@ void Panel::build()
         for (int i = 0; i < 5; i++) {
             float x = 346 + i * 55.0f;
             L(tg[i].n, x + 25, 562, 60, 10.0f);
-            B(x, 578, 50, 26, litIf(tg[i].b, tg[i].c), toggle(tg[i].b));
+            B(x, 578, 50, 26, litIf(tg[i].b, tg[i].c), toggle(tg[i].b))->param = P_(tg[i].b);
         }
         K(372, 660, 44, Bind::C(C_PORTA_TIME), "PORTA TIME");
         K(436, 660, 44, Bind::C(C_BEND_UP), "BEND UP");
@@ -1215,11 +1300,12 @@ void Panel::build()
         /* OCTAVE, TRANSPOSE: - and + with the value between; TAP TEMPO */
         auto step = [&](float x, const char *leg, Bind b) {
             L(leg, x + 54, 694, 110, 11.0f);
-            B(x, 712, 36, 26, [] { return Colours::transparentBlack; }, [this, b](const juce::MouseEvent &) { setv(*this, b, ival(*this, b) - 1); }, "-");
+            B(x, 712, 36, 26, [] { return Colours::transparentBlack; }, [this, b](const juce::MouseEvent &) { setv(*this, b, ival(*this, b) - 1); }, "-")->param = P_(b);
             auto *t = add<TextBox>([this, b] { int v = ival(*this, b); return (v > 0 ? "+" : "") + juce::String(v); });
+            t->param = P_(b);
             t->setBounds((int)x + 38, 714, 32, 22);
             t->size = 14.0f;
-            B(x + 72, 712, 36, 26, [] { return Colours::transparentBlack; }, [this, b](const juce::MouseEvent &) { setv(*this, b, ival(*this, b) + 1); }, "+");
+            B(x + 72, 712, 36, 26, [] { return Colours::transparentBlack; }, [this, b](const juce::MouseEvent &) { setv(*this, b, ival(*this, b) + 1); }, "+")->param = P_(b);
         };
         step(344, "OCTAVE", Bind::C(C_OCTAVE));
         step(458, "TRANSPOSE", Bind::G("transpose"));
@@ -1235,13 +1321,13 @@ void Panel::build()
                 double avg = (taps.back() - taps.front()) / (double)(taps.size() - 1);
                 setv(*this, Bind::C(C_TEMPO), (int)std::lround(60000.0 / avg));
             }
-        });
+        })->param = PI_(comIdx(C_TEMPO));
     }
 
     /* ============================================================ TRANCE GATE */
     S(634, Z0, 1274, Z1, "TRANCE GATE", col::cyan);
     {
-        B(804, 528, 54, 28, litIf(Bind::C(C_GATE_ON), col::cyan), toggle(Bind::C(C_GATE_ON)), "ON");
+        B(804, 528, 54, 28, litIf(Bind::C(C_GATE_ON), col::cyan), toggle(Bind::C(C_GATE_ON)), "ON")->param = P_(Bind::C(C_GATE_ON));
         auto *pat = add<TextBox>([&pr] {
             int k = pr.value(comIdx(C_GATE_PAT));
             return "PATTERN:  " + juce::String(GATEPAT_NAME[juce::jlimit(0, NGATEPAT, k)]).toUpperCase() + "   v";
@@ -1269,14 +1355,15 @@ void Panel::build()
                     self->proc.loadGatePattern(r - 1);
             });
         }, col::cyan);
+        pat->param = PI_(comIdx(C_GATE_PAT));
         pat->setBounds(866, 530, 250, 26);
         pat->size = 14.0f;
         L("TONES", 1146, 532, 50, 10.0f, col::dim);
         for (int t = 0; t < 3; t++)
-            B(1172 + t * 32.0f, 528, 30, 28, litIf(Bind::C(C_GATE_T1 + t), col::cyan), toggle(Bind::C(C_GATE_T1 + t)), juce::String(t + 1));
+            B(1172 + t * 32.0f, 528, 30, 28, litIf(Bind::C(C_GATE_T1 + t), col::cyan), toggle(Bind::C(C_GATE_T1 + t)), juce::String(t + 1))->param = P_(Bind::C(C_GATE_T1 + t));
         auto *grid = add<GateGrid>(*this);
         grid->setBounds(648, 564, 612, 112);
-        L("drag: level   right-click: tie   shift: rest", 954, 676, 400, 10.0f, col::dim);
+        L("drag: level   alt: tie   shift: rest   right-click: host menu", 954, 676, 400, 10.0f, col::dim);
         struct Gk { const char *n; int p; };
         Gk gk[7] = {{"RATE", C_GATE_RATE}, {"LENGTH", C_GATE_LEN}, {"SWING", C_GATE_SWING}, {"ATTACK", C_GATE_ATT},
                     {"RELEASE", C_GATE_REL}, {"DEPTH", C_GATE_DEPTH}, {"FILTER", C_GATE_FILTER}};
@@ -1287,11 +1374,12 @@ void Panel::build()
     /* ============================================================ ARPEGGIO */
     S(1284, Z0, 1444, Z1, "ARPEGGIO", col::amber);
     {
-        B(1388, 528, 50, 24, litIf(Bind::C(C_ARP_ON), col::red), toggle(Bind::C(C_ARP_ON)), "ON");
+        B(1388, 528, 50, 24, litIf(Bind::C(C_ARP_ON), col::red), toggle(Bind::C(C_ARP_ON)), "ON")->param = P_(Bind::C(C_ARP_ON));
         auto *nm = add<TextBox>([&pr] {
             int v = pr.value(comIdx(C_ARP_VAR));
             return juce::String::charToString((juce::juce_wchar)('A' + v / 8)) + juce::String(v % 8 + 1) + " " + ARP[v % NARP].name;
         });
+        nm->param = PI_(comIdx(C_ARP_VAR));
         nm->setBounds(1292, 558, 146, 22);
         nm->size = 12.5f;
         for (int i = 0; i < 8; i++) {
