@@ -456,7 +456,7 @@ private:
     {
         /* eight lines with a Householder mix, each damped and gently moving; ROOM short and close, PLATE dense and
          * bright (no pre-delay), HALL large with a pre-delay */
-        static const float SIZE[3] = {0.45f, 0.75f, 1.6f}, TMAX[3] = {2.5f, 6.0f, 12.0f}, PRE[3] = {0.006f, 0.0f, 0.028f};
+        static const float SIZE[3] = {0.45f, 0.75f, 1.6f}, TMAX[3] = {1.4f, 3.2f, 5.5f}, PRE[3] = {0.006f, 0.0f, 0.028f};
         int ty = clampi(rType, 0, 2);
         float t60 = 0.15f + std::pow(rTime.v / 127.0f, 1.5f) * TMAX[ty];
         float damp = 20000.0f * std::exp2(-(rDamp.v - 1.0f) / 99.0f * 4.6f) * (ty == RT_PLATE ? 1.3f : 1.0f);
