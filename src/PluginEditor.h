@@ -68,6 +68,7 @@ class GalaEditor : public juce::AudioProcessorEditor
 public:
     explicit GalaEditor(GalaProcessor &);
     void resized() override;
+    bool sized = false;                      /* (resizes during the constructor keep nothing) */
 
 private:
     GalaProcessor &proc;

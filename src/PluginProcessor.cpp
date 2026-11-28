@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MPL-2.0
  * Copyright (C) 2026 swtdr34mz (GALA SH-1T) */
 #include "PluginProcessor.h"
+#include "PanelDialog.h"
 #include "PluginEditor.h"
 
 using namespace gl;
@@ -229,7 +230,7 @@ void GalaProcessor::copyTone(int from, int to)
 
 juce::File GalaProcessor::patchFolder()
 {
-    return juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("GALA SH-1T").getChildFile("Patches");
+    return pdlg::docsOrAppData().getChildFile("GALA SH-1T").getChildFile("Patches");
 }
 
 void GalaProcessor::patchToXml(const Patch &p, juce::XmlElement &x)
