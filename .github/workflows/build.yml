@@ -75,7 +75,6 @@ jobs:
           $o = "GALA-SH-1T-Windows"
           New-Item -ItemType Directory -Force $o | Out-Null
           Copy-Item -Recurse "$a/VST3/GALA SH-1T.vst3" $o/
-          Copy-Item "$a/Standalone/GALA SH-1T.exe" $o/
           Copy-Item README.md $o/
           Compress-Archive -Path $o -DestinationPath GALA-SH-1T-Windows.zip
 
