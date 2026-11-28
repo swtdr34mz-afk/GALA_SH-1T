@@ -995,10 +995,10 @@ void Panel::build()
         auto *lcd = add<Lcd>(*this);
         lcd->setBounds(676, 38, 380, 78);
         B(1062, 40, 40, 36, [] { return Colours::transparentBlack; }, [&pr](const juce::MouseEvent &) {
-            pr.setCurrentProgram((pr.getCurrentProgram() + pr.getNumPrograms() - 1) % pr.getNumPrograms());
+            pr.setCurrentProgram((pr.getCurrentProgram() + pr.programCount() - 1) % pr.programCount());
         }, "<");
         B(1062, 78, 40, 36, [] { return Colours::transparentBlack; }, [&pr](const juce::MouseEvent &) {
-            pr.setCurrentProgram((pr.getCurrentProgram() + 1) % pr.getNumPrograms());
+            pr.setCurrentProgram((pr.getCurrentProgram() + 1) % pr.programCount());
         }, ">");
         L("BANK", 1132, 36, 50, 11.0f, col::dim);
         L("NUMBER", 1140, 76, 60, 11.0f, col::dim);

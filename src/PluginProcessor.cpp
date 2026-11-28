@@ -178,7 +178,7 @@ void GalaProcessor::applyPatch(const Patch &p, bool toHost)
 
 void GalaProcessor::setCurrentProgram(int index)
 {
-    if (index < 0 || index >= getNumPrograms())
+    if (index < 0 || index >= programCount())
         return;
     program = index;
     applyPatch(index < NFACTORY ? factory(index) : userPatches[(size_t)(index - NFACTORY)], true);
@@ -189,7 +189,7 @@ const juce::String GalaProcessor::getProgramName(int index)
 {
     if (index >= 0 && index < NFACTORY)
         return juce::String(factory(index).name);
-    if (index >= NFACTORY && index < getNumPrograms())
+    if (index >= NFACTORY && index < programCount())
         return juce::String(userPatches[(size_t)(index - NFACTORY)].name);
     return {};
 }
