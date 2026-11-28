@@ -31,6 +31,8 @@ xattr -cr ~/Library/Audio/Plug-Ins/VST3/"GALA SH-1T.vst3" ~/Library/Audio/Plug-I
 ```
 Die Plugins laufen auf Apple Silicon und Intel-Macs (eine Datei für beide).
 
+**Linux (Bitwig, Reaper, Ardour, ...):** Die `.tar.gz` entpacken. `GALA SH-1T.vst3` nach `~/.vst3/` kopieren, `GALA SH-1T.lv2` nach `~/.lv2/`. Die App `GALA SH-1T` startet auch ohne DAW. 64 Bit, gebaut auf Ubuntu 22.04.
+
 ## What it has (the GAIA's, from its owner's manual)
 
 - **Three TONES** per voice, each a whole synth: **OSC** (SAW, SQUARE, PULSE/PWM, TRIANGLE, SINE, NOISE, SUPER SAW,

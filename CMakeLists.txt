@@ -36,11 +36,15 @@ endif()
 if(APPLE)
     list(APPEND GALA_FORMATS AU)
 endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND GALA_FORMATS LV2)
+endif()
 
 juce_add_plugin(Gala
     PRODUCT_NAME "GALA SH-1T"
     COMPANY_NAME "swtdr34mz"
     BUNDLE_ID "com.swtdr34mz.galash1t"
+    LV2URI "https://github.com/swtdr34mz-afk/GALA_SH-1T"
     PLUGIN_MANUFACTURER_CODE Swtd
     PLUGIN_CODE GaSh
     FORMATS ${GALA_FORMATS}
